@@ -14,27 +14,42 @@ routes.post('/classes', async (request, response) => {
 
     const { name, avatar, whatsapp, bio, subject, cost, schedule } = request.body
 
-    // ---------- users ----------
-    const insertedUsersIds = await db('users').insert({ name, avatar, whatsapp, bio })
+    const trx = await db.transaction()
 
-    const user_id = insertedUsersIds[0]
+    try {
 
-    // ---------- classes ----------
-    const insertedClassesIds = await db('classes').insert({ subject, cost, user_id })
+        // ---------- users ----------
+        const insertedUsersIds = await trx('users').insert({ name, avatar, whatsapp, bio })
 
-    const class_id = insertedClassesIds[0]
+        const user_id = insertedUsersIds[0]
 
-    // ---------- classes ----------
-    const classSchedule = schedule.map((scheduleItem: ScheduleItem) => ({
-        class_id,
-        week_day: scheduleItem.week_day,
-        from: convertHourToMinutos(scheduleItem.from),
-        to: convertHourToMinutos(scheduleItem.to)
-    }))
+        // ---------- classes ----------
+        const insertedClassesIds = await trx('classes').insert({ subject, cost, user_id })
 
-    await db('class_schedule').insert(classSchedule)
+        const class_id = insertedClassesIds[0]
 
-    return response.json({ ok: true })
+        // ---------- classes ----------
+        const classSchedule = schedule.map((scheduleItem: ScheduleItem) => ({
+            class_id,
+            week_day: scheduleItem.week_day,
+            from: convertHourToMinutos(scheduleItem.from),
+            to: convertHourToMinutos(scheduleItem.to)
+        }))
+
+        await trx('class_schedule').insert(classSchedule)
+
+        await trx.commit()
+
+        return response.status(201).send()
+
+    } catch (error) {
+
+        await trx.rollback()
+
+        return response.status(400).json({
+            error: 'Erro inesperado ao criar a classe.II'
+        })
+    }
 })
 
 
